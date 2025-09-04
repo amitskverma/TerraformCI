@@ -13,19 +13,19 @@ terraform {
     workspaces {
       name = "terraformCi"
     }
-}
+  }
 }
 
 provider "azurerm" {
-    
+
   features {}
   skip_provider_registration = true
 }
 
 resource "random_string" "uniquestring" {
-  length           = 20
-  special          = false
-  upper            = false
+  length  = 20
+  special = false
+  upper   = false
 }
 
 resource "azurerm_resource_group" "rg" {
