@@ -29,8 +29,8 @@ resource "random_string" "uniquestring" {
 }
 
 resource "azurerm_resource_group" "rg" {
-  name     = "%ResourceGroupName%"
-  location = "%ResourceGroupLocation%"
+  name     = "811-e0548fdf-provide-continuous-delivery-with-gith"
+  location = "East US"
 }
 
 resource "azurerm_storage_account" "storageaccount" {
