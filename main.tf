@@ -1,42 +1,94 @@
+# Configure the Azure provider
 terraform {
-  required_version = ">=1.3.0"
   required_providers {
     azurerm = {
-      "source" = "hashicorp/azurerm"
-      version  = "3.43.0"
-    }
-  }
-
-  cloud {
-    organization = "remote-state211"
-
-    workspaces {
-      name = "terraformCi"
+        source  = "hashicorp/azurerm"
+        version = "~> 3.0"
     }
   }
 }
 
 provider "azurerm" {
-
-  features {}
-  skip_provider_registration = true
+    features {}
+    use_cli = true 
+    skip_provider_registration = true
 }
 
-resource "random_string" "uniquestring" {
-  length  = 20
-  special = false
-  upper   = false
+# --- Resource Group ---
+
+data "azurerm_resource_group" "rg" {
+  name     = "1-940979a1-playground-sandbox"
 }
 
-resource "azurerm_resource_group" "rg" {
-  name     = "811-e0548fdf-provide-continuous-delivery-with-gith"
-  location = "East US"
+# --- Virtual Network (VNet) ---
+resource "azurerm_virtual_network" "vnet" {
+
+    name                = "${data.azurerm_resource_group.rg.name}-network"
+    address_space       = ["10.0.0.0/16"]
+    location            = data.azurerm_resource_group.rg.location
+    resource_group_name = data.azurerm_resource_group.rg.name
 }
 
-resource "azurerm_storage_account" "storageaccount" {
-  name                     = "stg${random_string.uniquestring.result}"
-  resource_group_name      = azurerm_resource_group.rg.name
-  location                 = azurerm_resource_group.rg.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
+# --- Subnet ---
+resource "azurerm_subnet" "subnet" {
+  name                 = "my-subnet"
+  resource_group_name  = data.azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+
+# --- Public IP ---
+resource "azurerm_public_ip" "pip" {
+    name                = "my-public-ip"
+    location            = data.azurerm_resource_group.rg.location
+    resource_group_name = data.azurerm_resource_group.rg.name
+    allocation_method   = "Dynamic"  
+}
+
+# --- Network Interface (NIC) ---
+resource "azurerm_network_interface" "nic"{
+    name                = "my-nic"
+   
+    location            = data.azurerm_resource_group.rg.location
+    resource_group_name = data.azurerm_resource_group.rg.name
+
+    ip_configuration {
+        name                          = "internal"
+        subnet_id                     = azurerm_subnet.subnet.id  
+        private_ip_address_allocation = "Dynamic"
+        public_ip_address_id          = azurerm_public_ip.pip.id
+   }
+}
+
+# --- Linux Virtual Machine (VM) ---
+resource "azurerm_linux_virtual_machine" "vm" {
+  name                  = "my-vm"
+  location              = data.azurerm_resource_group.rg.location
+  resource_group_name   = data.azurerm_resource_group.rg.name
+  size                  = "Standard_B1s"
+  admin_username        = "azureuser"
+  network_interface_ids = [azurerm_network_interface.nic.id]
+
+  admin_ssh_key {
+      username   = "azureuser"
+      public_key = file("~/.ssh/id_rsa.pub")
+  }
+
+  os_disk {
+      caching              = "ReadWrite"
+      storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+      publisher = "Canonical"
+      offer     = "0001-com-ubuntu-server-jammy"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+  }
+}
+
+# --- Output ---
+output "public_ip_address" {
+  value = azurerm_public_ip.pip.ip_address
 }
