@@ -1,0 +1,5 @@
+resource_group_name  = "947-4c732a4f-setting-up-remote-state-storage"
+storage_account_name = "devtaco25610"
+container_name       = "tfstate"
+key                  = "terraform.tfstate"
+use_azuread_auth     = true
