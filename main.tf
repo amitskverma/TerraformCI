@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -18,7 +22,7 @@ resource "azurerm_resource_group" "jenkins_agent_rg" {
   location = "East US"
 }
 
-# 2. Networking
+# 2. Virtual Network
 resource "azurerm_virtual_network" "agent_vnet" {
   name                = "vnet-jenkins-agent"
   address_space       = ["10.0.0.0/16"]
@@ -26,6 +30,7 @@ resource "azurerm_virtual_network" "agent_vnet" {
   resource_group_name = azurerm_resource_group.jenkins_agent_rg.name
 }
 
+# 3. Subnet
 resource "azurerm_subnet" "agent_subnet" {
   name                 = "snet-jenkins-agent"
   resource_group_name  = azurerm_resource_group.jenkins_agent_rg.name
@@ -33,6 +38,7 @@ resource "azurerm_subnet" "agent_subnet" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
+# 4. Public IP
 resource "azurerm_public_ip" "agent_pip" {
   name                = "pip-jenkins-agent"
   location            = azurerm_resource_group.jenkins_agent_rg.location
@@ -41,6 +47,7 @@ resource "azurerm_public_ip" "agent_pip" {
   sku                 = "Standard"
 }
 
+# 5. Network Security Group (Allow SSH)
 resource "azurerm_network_security_group" "agent_nsg" {
   name                = "nsg-jenkins-agent"
   location            = azurerm_resource_group.jenkins_agent_rg.location
@@ -59,6 +66,7 @@ resource "azurerm_network_security_group" "agent_nsg" {
   }
 }
 
+# 6. Network Interface (NIC)
 resource "azurerm_network_interface" "agent_nic" {
   name                = "nic-jenkins-agent"
   location            = azurerm_resource_group.jenkins_agent_rg.location
@@ -77,7 +85,13 @@ resource "azurerm_network_interface_security_group_association" "agent_nic_nsg" 
   network_security_group_id = azurerm_network_security_group.agent_nsg.id
 }
 
-# 3. Agent VM with Auto-Installation Script
+# 7. Dynamically Generate SSH Key Pair
+resource "tls_private_key" "agent_ssh" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+# 8. Linux Virtual Machine (Jenkins Agent Node)
 resource "azurerm_linux_virtual_machine" "jenkins_agent_vm" {
   name                = "vm-jenkins-agent"
   resource_group_name = azurerm_resource_group.jenkins_agent_rg.name
@@ -89,7 +103,7 @@ resource "azurerm_linux_virtual_machine" "jenkins_agent_vm" {
     azurerm_network_interface.agent_nic.id,
   ]
 
-  # Automatically installs Java, Git, and Terraform on VM boot
+  # Cloud-init script automatically installs Java 17, Git, and Terraform on boot
   custom_data = base64encode(<<-EOF
               #!/bin/bash
               sudo apt update && sudo apt install -y openjdk-17-jre git wget gpg
@@ -104,7 +118,7 @@ resource "azurerm_linux_virtual_machine" "jenkins_agent_vm" {
 
   admin_ssh_key {
     username   = "azureuser"
-    public_key = "ssh-rsa YOUR_PUBLIC_SSH_KEY_HERE" # Put your SSH public key here
+    public_key = tls_private_key.agent_ssh.public_key_openssh
   }
 
   os_disk {
@@ -125,6 +139,14 @@ resource "azurerm_linux_virtual_machine" "jenkins_agent_vm" {
   }
 }
 
+# Outputs
 output "agent_public_ip" {
-  value = azurerm_public_ip.agent_pip.ip_address
+  value       = azurerm_public_ip.agent_pip.ip_address
+  description = "The Public IP address of the Jenkins Agent VM"
+}
+
+output "agent_private_key_pem" {
+  value       = tls_private_key.agent_ssh.private_key_pem
+  sensitive   = true
+  description = "The generated private SSH key to connect to the agent"
 }
