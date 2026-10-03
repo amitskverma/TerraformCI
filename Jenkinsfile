@@ -14,6 +14,8 @@ pipeline {
                     java -version
                     terraform --version
                     git --version
+
+                    echo amit
                 '''
             }
         }
