@@ -1,7 +1,7 @@
 pipeline {
     agent {
         node {
-            label 'terraform-runner'
+            label 'build-agent'
         }
     }
 
