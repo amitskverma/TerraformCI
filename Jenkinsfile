@@ -12,10 +12,10 @@ pipeline {
                     echo "Running on Agent Hostname: $(hostname)"
                     echo "Agent IP: $(curl -s ifconfig.me)"
                     java -version
-                    terraform --version
                     git --version
-
+                    echo "Running on Agent Hostname: $(hostname)"
                     echo amit
+                    echo "Running on Agent Hostname: $(hostname)"
                 '''
             }
         }
