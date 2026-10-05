@@ -17,6 +17,7 @@ pipeline {
                     echo amit
                     echo "Running on Agent Hostname: $(hostname)"
                     echo "practicem jenkinswebhook"
+                    curl www.google.com
                 '''
             }
         }
